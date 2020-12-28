@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  data_receiver:
+    container_name: data_receiver
+    image: gr1902/data_manager
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command: python start_receiver.py --config config.yaml
+    volumes:
+      - ./data/:/home/user/app/data
+      - ./logs/:/home/user/app/logs
+#    restart: always
+
+  data_checker:
+    container_name: data_checker
+    image: gr1902/data_manager
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command: python start_checker.py --config config.yaml
+    volumes:
+      - ./data/:/home/user/app/data
+      - ./logs/:/home/user/app/logs
+#    restart: always

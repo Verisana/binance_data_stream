@@ -1,0 +1,3 @@
+# specify trades or/and order_book
+streams: [trades]
+symbols: # all symbols are used if not specified
