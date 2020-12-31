@@ -1,7 +1,7 @@
 # specify trades or/and order_book
 data_receiver:
-  streams: [trades]
-  symbols: # all symbols are used if not specified
+  streams: [trade]
+  symbols: 'all'
 data_checker:
   sleep_time:  # in hours
   root_dir: ./data

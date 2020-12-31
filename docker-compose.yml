@@ -11,20 +11,32 @@ services:
       - .env
     command: python start_receiver.py --config config.yaml
     volumes:
-      - ./data/:/home/user/app/data
       - ./logs/:/home/user/app/logs
-#    restart: always
+    restart: on-failure
 
-  data_checker:
-    container_name: data_checker
-    image: gr1902/data_manager
-    build:
-      context: .
-      dockerfile: Dockerfile
+#  data_checker:
+#    container_name: data_checker
+#    image: gr1902/data_manager
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    env_file:
+#      - .env
+#    command: python start_checker.py --config config.yaml
+#    volumes:
+#      - ./logs/:/home/user/app/logs
+#    restart: on-failure
+
+  mongo_db:
+    container_name: mongo_db
+    image: mongo:4.4.2-bionic
+    restart: always
     env_file:
       - .env
-    command: python start_checker.py --config config.yaml
     volumes:
-      - ./data/:/home/user/app/data
-      - ./logs/:/home/user/app/logs
-#    restart: always
+      - mongo_data:/data/db
+    ports:
+      - 27017:27017
+
+volumes:
+  mongo_data:

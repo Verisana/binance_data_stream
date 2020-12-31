@@ -217,3 +217,4 @@ sensitive_info/
 data/
 logs/
 .vscode/
+mongo_data/

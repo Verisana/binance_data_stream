@@ -1,0 +1,1 @@
+IS_CHECKED_FIELDNAME = 'is_checked'

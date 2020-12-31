@@ -1,57 +1,46 @@
 import logging
 import json
 import os
-import datetime
-from glob import glob
+from datetime import datetime
 
 import telegram
+import pymongo
 from unicorn_binance_websocket_api.unicorn_binance_websocket_api_manager import BinanceWebSocketApiManager
 from telegram import Bot
 from dotenv import load_dotenv
 from binance.client import Client
 
+from utils import init_mongodb, get_collection
+from workers.constants import IS_CHECKED_FIELDNAME
+
+load_dotenv()
+
 
 class BinanceWebSocketReceiver:
-    def __init__(self, symbols=None, streams=None, trades_in_file=1000000,
-                 root_dir='./data'):
+    def __init__(self, symbols, streams):
         self.bm = BinanceWebSocketApiManager(exchange="binance.com")
         self.binance_client = Client('', '')
-        self.symbols = symbols or self._get_all_symbols()
-        self.streams = streams or ['trade']
-        load_dotenv()
-        token = os.getenv('BOT_TOKEN')
-        self.chat_id = os.getenv('CHAT_ID')
 
+        self.db_client, self.db = init_mongodb()
+
+        self.symbols = self._get_all_symbols() if symbols == 'all' else symbols
+        self.streams = streams
+
+        self.chat_id = os.getenv('CHAT_ID')
+        token = os.getenv('BOT_TOKEN')
         self.bot = Bot(token)
+
         self.logger = logging.getLogger('BinanceWebSocketReceiver_logger')
 
-        # Константы
-        self.data_trade_filename = '{}_{}_{}.csv'
-
-        self.columns_order = {'symbol': 's', 'trade_id': 't', 'price': 'p',
-                              'quantity': 'q', 'trade_time': 'T',
-                              'is_buyer_market_maker': 'm'}
-        self.trades_in_file = trades_in_file
-        self.root_dir = root_dir
-        self.trades_dir = os.path.join(root_dir, 'trades')
-        self.order_book_dir = os.path.join(root_dir, 'order_book')
-        self._prepare_folders()
-
-    def _prepare_folders(self):
-        if not os.path.exists(self.root_dir):
-            os.makedirs(self.root_dir)
-        if not os.path.exists(self.trades_dir):
-            os.makedirs(self.trades_dir)
-        if not os.path.exists(self.order_book_dir):
-            os.makedirs(self.order_book_dir)
-
-        for symbol in self.symbols:
-            trade_symbol_dir = os.path.join(self.trades_dir, symbol.upper())
-            order_book_symbol_dir = os.path.join(self.order_book_dir, symbol.upper())
-            if not os.path.exists(trade_symbol_dir):
-                os.makedirs(trade_symbol_dir)
-            if not os.path.exists(order_book_symbol_dir):
-                os.makedirs(order_book_symbol_dir)
+        # Constants
+        self.trade_id_field = 'trade_id'
+        # Store original timestamp and parsed because of parsed loose data
+        # while converting
+        self.trade_timestamp_field = 'orig_trade_time'
+        self.trade_parsed_time_field = 'parsed_trade_time'
+        self.parsing_trade_columns = {
+            'symbol': 's', self.trade_id_field: 't', 'price': 'p', 'quantity': 'q',
+            self.trade_timestamp_field: 'T', 'is_buyer_market_maker': 'm'}
 
     def _get_all_symbols(self):
         exchange_info = self.binance_client.get_exchange_info()
@@ -73,16 +62,6 @@ class BinanceWebSocketReceiver:
             except telegram.error.TimedOut as e:
                 self.logger.info(f"TimedOut error to Telegram while sending "
                                  f"message {message}")
-
-    def _signal_if_alive(self, counter, last_hour):
-        now = datetime.datetime.now()
-        if (now.hour % 3 == 0) and (last_hour != now.hour):
-            message = f'Execution stream reached {counter} operations milestone'
-            self.logger.info(message)
-            self.bot.send_message(self.chat_id, message)
-            last_hour = now.hour
-        counter += 1
-        return counter, last_hour
 
     def start_websocket(self):
         self.bm.create_stream(self.streams, self.symbols)
@@ -116,25 +95,10 @@ class BinanceWebSocketReceiver:
                 if len(self.bm.stream_buffer) > 10000:
                     message = f'Your stream buffer is {len(self.bm.stream_buffer)} len'
                     self._send_log_info(message, log_level='warning')
-
-
         except Exception as e:
             message = f'Uncaught exception: {e}'
             self._send_log_info(message, log_level='exception')
             raise e
-
-    def _create_empty_symbol_file(self, file_path, filename_trade):
-        message = f"Creating new file {filename_trade}"
-        self._send_log_info(message, log_level='info', to_telegram=False)
-        with open(file_path, 'w') as file:
-            headers = ','.join(self.columns_order.keys())
-            headers += '\n'
-            file.write(headers)
-
-    @staticmethod
-    def _append_new_trade(file_path, to_save):
-        with open(file_path, 'a') as file:
-            file.write(to_save)
 
     def _process_trade_ticker(self, msg):
         if msg['e'] == 'error':
@@ -144,64 +108,32 @@ class BinanceWebSocketReceiver:
 
         new_document = self._parse_msg(msg)
 
-        root_dir = os.path.join(self.trades_dir, new_document["symbol"])
-        all_files = sorted(glob(os.path.join(root_dir, '*')))
-        if all_files:
-            # Находим начало trade_id у последнего файла
-            last_file_trade_id = int(all_files[-1].split('_')[1])
-        else:
-            last_file_trade_id = new_document['trade_id']
+        collection = get_collection(self.db, new_document['symbol'], msg['e'])
+        collection.create_index(
+            [(self.trade_id_field, pymongo.ASCENDING),
+             (self.trade_parsed_time_field, pymongo.ASCENDING)], unique=True)
 
-        range_in_file = range(last_file_trade_id, last_file_trade_id + self.trades_in_file)
+        try:
+            result = collection.update_one({
+                self.trade_id_field: new_document['trade_id']},
+                {'$set': new_document}, upsert=True)
+        except pymongo.errors.PyMongoError as e:
+            message = f"PyMongoError: {e}"
+            self._send_log_info(message, 'error')
+            return
 
-        filename_trade = None
-        if new_document['trade_id'] in range_in_file:
-            filename_trade = self.data_trade_filename.format(
-                new_document['symbol'], last_file_trade_id,
-                self.trades_in_file)
-        elif new_document['trade_id'] == last_file_trade_id+1:
-            filename_trade = self.data_trade_filename.format(
-                new_document['symbol'], last_file_trade_id+1,
-                self.trades_in_file)
-        else:
-            message = f"Lost trades from " \
-                      f"{last_file_trade_id+self.trades_in_file} to " \
-                      f"{new_document['trade_id']}"
-            self._send_log_info(message, log_level='info')
-            for i in range(
-                    last_file_trade_id+self.trades_in_file,
-                    new_document['trade_id']+1, self.trades_in_file):
-                filename_trade = self.data_trade_filename.format(
-                    new_document['symbol'], i, self.trades_in_file)
-                file_path = os.path.join(root_dir, filename_trade)
-                self._create_empty_symbol_file(file_path, filename_trade)
-            if filename_trade is None:
-                filename_trade = self.data_trade_filename.format(
-                    new_document['symbol'], last_file_trade_id+1,
-                    self.trades_in_file)
-
-        to_save = self._get_str_to_save(new_document)
-        file_path = os.path.join(root_dir, filename_trade)
-        if os.path.exists(file_path):
-            self._append_new_trade(file_path, to_save)
-        else:
-            self._create_empty_symbol_file(file_path, filename_trade)
-            self._append_new_trade(file_path, to_save)
+        if not result.acknowledged:
+            message = f"Couldn't insert {new_document}. " \
+                      f"Check result: {result.raw_result}"
+            self._send_log_info(message, 'error')
 
     @staticmethod
     def _process_book_ticker(msg):
         print(msg)
 
     def _parse_msg(self, msg):
-        return {k: msg[v] for k, v in self.columns_order.items()}
-
-    def _get_str_to_save(self, new_document):
-        new_line = ''
-        for column in self.columns_order.keys():
-            new_line += str(new_document[column]) + ','
-
-        # Меняем последнюю запятую на перенос строки
-        new_line = new_line[:-1]
-        new_line += '\n'
-
-        return new_line
+        parsed = {k: msg[v] for k, v in self.parsing_trade_columns.items()}
+        parsed[self.trade_parsed_time_field] = datetime.utcfromtimestamp(
+            parsed[self.trade_timestamp_field] / 1000)
+        parsed[IS_CHECKED_FIELDNAME] = False
+        return parsed

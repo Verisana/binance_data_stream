@@ -6,12 +6,11 @@ from workers.data_checker import BinanceDataChecker
 
 
 def main(config):
-    sleep_time = config['data_receiver']['sleep_time']
-    root_dir = config['data_receiver']['root_dir']
+    sleep_time = config['data_checker']['sleep_time']
 
-    # manager = BinanceDataChecker(sleep_time, root_dir)
-    # manager.start_checking()
-    print('Mocked checker')
+    manager = BinanceDataChecker(sleep_time)
+    manager.start_checking()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
