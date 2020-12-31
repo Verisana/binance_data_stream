@@ -6,16 +6,17 @@ from workers.data_receiver import BinanceWebSocketReceiver
 
 
 def main(config):
-    streams = config['streams']
-    symbols = config['symbols'] if config['symbols'] else None
+    streams = config['data_receiver']['streams']
+    symbols = config['data_receiver']['symbols'] if config['symbols'] else None
 
     if symbols:
         symbols = list(map(lambda x: x.lower(), symbols))
     if streams is not None:
         streams = list(map(lambda x: x.lower(), streams))
 
-    manager = BinanceWebSocketReceiver(symbols, streams)
-    manager.start_websocket()
+    # manager = BinanceWebSocketReceiver(symbols, streams)
+    # manager.start_websocket()
+    print('Mocked receiver')
 
 
 if __name__ == '__main__':
