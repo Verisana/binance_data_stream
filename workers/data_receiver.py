@@ -10,7 +10,7 @@ from telegram import Bot
 from dotenv import load_dotenv
 from binance.client import Client
 
-from utils import init_mongodb, get_collection
+from utils import init_mongodb_connection, get_collection
 from workers.constants import IS_CHECKED_FIELDNAME
 
 load_dotenv()
@@ -21,7 +21,7 @@ class BinanceWebSocketReceiver:
         self.bm = BinanceWebSocketApiManager(exchange="binance.com")
         self.binance_client = Client('', '')
 
-        self.db_client, self.db = init_mongodb()
+        self.db_client, self.db = init_mongodb_connection()
 
         self.symbols = self._get_all_symbols() if symbols == 'all' else symbols
         self.streams = streams

@@ -10,7 +10,7 @@ def get_standardized_str(str_to_convert):
     return str_to_convert.lower().strip('\n').strip(' ')
 
 
-def init_mongodb(connect_cred=None):
+def init_mongodb_connection(connect_cred=None):
     user = os.getenv('MONGO_INITDB_ROOT_USERNAME')
     password = os.getenv('MONGO_INITDB_ROOT_PASSWORD')
     host = f"{os.getenv('MONGO_HOST')}:27017/"
