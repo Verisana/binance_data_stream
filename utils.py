@@ -23,4 +23,4 @@ def init_mongodb_connection(connect_cred=None):
 
 def get_db_collection(db, symbol, stream):
     collection_name = f"{symbol.upper()}_{stream.lower()}"
-    return db.get_db_collection(collection_name)
+    return db.get_collection(collection_name)
