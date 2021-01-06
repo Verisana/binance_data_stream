@@ -30,7 +30,7 @@ class BinanceDataStreamBase:
             'symbol': 's', TRADE_ID_FIELD: 't', 'price': 'p', 'quantity': 'q',
             TRADE_TIMESTAMP_FIELD: 'T', 'is_buyer_market_maker': 'm'}
 
-    def _send_log_info(self, message, log_level='info', to_telegram=True):
+    def _send_log_info(self, message, log_level='info', to_telegram=False):
         if log_level == 'debug':
             self.logger.debug(message)
         elif log_level == 'info':

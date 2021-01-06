@@ -59,9 +59,9 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                         self._process_trade_ticker(msg)
                     else:
                         self._process_book_ticker(msg)
-                    self._send_log_info(f'One message process time is'
-                                        f' {time.time() - start}',
-                                        log_level='debug')
+                    message = f'One message process time is ' \
+                              f'{time.time() - start}'
+                    self._send_log_info(message, log_level='debug')
                 else:
                     time.sleep(0.3)
 
