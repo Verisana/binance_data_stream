@@ -42,6 +42,7 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
             while True:
                 msg = self.bm.pop_stream_data_from_stream_buffer()
                 if msg:
+                    start = time.time()
                     try:
                         msg = json.loads(msg)
                         stream = msg['stream']
@@ -58,6 +59,9 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                         self._process_trade_ticker(msg)
                     else:
                         self._process_book_ticker(msg)
+                    self._send_log_info(f'One message process time is'
+                                        f' {time.time() - start}',
+                                        log_level='debug')
                 else:
                     time.sleep(0.3)
 
