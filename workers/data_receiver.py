@@ -1,5 +1,6 @@
 import logging
 import json
+import time
 
 import pymongo
 from pymongo.errors import PyMongoError
@@ -36,8 +37,8 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         message = f'Websocket connection opened for ' \
                   f'{self.db_client.address}...'
         self._send_log_info(message, log_level='info')
-
         try:
+            last_buffer_excel = False
             while True:
                 msg = self.bm.pop_stream_data_from_stream_buffer()
                 if msg:
@@ -49,7 +50,6 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                         message = f'Error occurred while decoding msg:\n {msg}'
                         self._send_log_info(message, log_level='exception')
                         continue
-
                     # Иногда вместо обновления какой-то мусор приходит
                     except KeyError:
                         continue
@@ -58,11 +58,19 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                         self._process_trade_ticker(msg)
                     else:
                         self._process_book_ticker(msg)
+                else:
+                    time.sleep(0.3)
 
                 if len(self.bm.stream_buffer) > 10000:
+                    current_buffer_excel = True
+                else:
+                    current_buffer_excel = False
+
+                if last_buffer_excel != current_buffer_excel:
                     message = f'Your stream buffer is ' \
                               f'{len(self.bm.stream_buffer)} len'
                     self._send_log_info(message, log_level='warning')
+                    last_buffer_excel = current_buffer_excel
         except Exception as e:
             message = f'Uncaught exception: {e}'
             self._send_log_info(message, log_level='exception')

@@ -42,8 +42,8 @@ class BinanceDataStreamBase:
         if to_telegram:
             try:
                 self.bot.send_message(self.chat_id, message, timeout=3)
-            except telegram.error.TimedOut as e:
-                self.logger.info(f"TimedOut error {e} to Telegram while "
+            except telegram.error.TelegramError as e:
+                self.logger.info(f"Telegram error {e} to Telegram while "
                                  f"sending message {message}")
 
     def _base_parse_trade(self, data):
