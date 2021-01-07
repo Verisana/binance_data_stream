@@ -2,7 +2,11 @@ import argparse
 import logging
 
 import yaml
+from dotenv import load_dotenv
+
 from workers.data_checker import BinanceDataChecker
+
+load_dotenv()
 
 
 def main(config):

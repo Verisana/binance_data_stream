@@ -1,15 +1,12 @@
-import logging
 import time
 from typing import List
 
 import numpy as np
-from dotenv import load_dotenv
 from binance.exceptions import BinanceAPIException
 
+from utils import get_logger_from_self
 from workers.constants import IS_CHECKED_FIELDNAME, TRADE_ID_FIELD
 from workers.data_base import BinanceDataStreamBase
-
-load_dotenv()
 
 
 class BinanceDataChecker(BinanceDataStreamBase):
@@ -18,7 +15,7 @@ class BinanceDataChecker(BinanceDataStreamBase):
 
         # Given in hours
         self.sleep_time = sleep_time * 60 * 60
-        self.logger = logging.getLogger('BinanceWebSocketReceiver_logger')
+        self.logger = get_logger_from_self(self)
 
     def start_checking(self):
         while True:
@@ -27,11 +24,11 @@ class BinanceDataChecker(BinanceDataStreamBase):
             time.sleep(self.sleep_time)
 
     def _check_trades(self):
-        all_collections = self.db.list_collection_names()
+        all_collections = self.mongo_manager.db.list_collection_names()
         trade_collections = filter(lambda x: x.endswith('trade'),
                                    all_collections)
         for collection in trade_collections:
-            self._process_trade_collection(self.db[collection])
+            self._process_trade_collection(self.mongo_manager.db[collection])
 
     def _process_trade_collection(self, collection):
         all_documents = list(collection.find(
@@ -46,6 +43,7 @@ class BinanceDataChecker(BinanceDataStreamBase):
                                                     diff-2, trade_id+1)
                 if is_filled:
                     document[IS_CHECKED_FIELDNAME] = True
+            self.mongo_manager.update_one({'_id': document['_id']}, document)
 
     def _fill_missing_docs(self, collection, diff, trade_id):
         symbol = collection.name.split('_')[0]

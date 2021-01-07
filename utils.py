@@ -1,26 +1,38 @@
 import os
+import logging
 
-from pymongo import MongoClient
-from dotenv import load_dotenv
+import telegram
+from telegram import Bot
 
-load_dotenv()
+
+def get_logger_from_self(self):
+    return logging.getLogger(f"{type(self).__name__}_logger")
 
 
 def get_standardized_str(str_to_convert):
     return str_to_convert.lower().strip('\n').strip(' ')
 
 
-def init_mongodb_connection(connect_cred=None):
-    user = os.getenv('MONGO_INITDB_ROOT_USERNAME')
-    password = os.getenv('MONGO_INITDB_ROOT_PASSWORD')
-    host = f"{os.getenv('MONGO_HOST')}:27017/"
-    connect_cred = f"mongodb://{user}:{password}@{host}" \
-        if connect_cred is None else connect_cred
-    client = MongoClient(connect_cred)
-    db = client.get_database(os.getenv('MONGO_DBNAME'))
-    return client, db
+class BaseLogger:
+    def __init__(self):
+        self.chat_id = os.getenv('CHAT_ID')
+        token = os.getenv('BOT_TOKEN')
+        self.bot = Bot(token)
 
+        self.logger = get_logger_from_self(self)
 
-def get_db_collection(db, symbol, stream):
-    collection_name = f"{symbol.upper()}_{stream.lower()}"
-    return db.get_collection(collection_name)
+    def _send_log_info(self, message, log_level='info', to_telegram=True):
+        if log_level == 'debug':
+            self.logger.debug(message)
+        elif log_level == 'info':
+            self.logger.info(message)
+        elif log_level == 'error':
+            self.logger.error(message)
+        elif log_level == 'exception':
+            self.logger.exception(message, exc_info=True)
+        if to_telegram:
+            try:
+                self.bot.send_message(self.chat_id, message, timeout=2)
+            except telegram.error.TelegramError as e:
+                self.logger.info(f"Telegram error {e} to Telegram while "
+                                 f"sending message {message}")
