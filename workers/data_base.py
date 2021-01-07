@@ -4,7 +4,7 @@ from datetime import datetime
 from binance.client import Client
 
 from utils import BaseLogger, get_logger_from_self
-from workers.constants import TRADE_ID_FIELD, TRADE_TIMESTAMP_FIELD, \
+from workers.constants import TRADE_TIMESTAMP_FIELD, \
     TRADE_PARSED_TIME_FIELD
 from workers.mongo_manager import MongoManager
 
@@ -15,10 +15,7 @@ class BinanceDataStreamBase(BaseLogger):
         self.binance_client = Client(os.getenv('BINANCE_API'),
                                      os.getenv('BINANCE_TOKEN'))
         self.mongo_manager = MongoManager()
-
-        self.parsing_trade_columns = {
-            'symbol': 's', TRADE_ID_FIELD: 't', 'price': 'p', 'quantity': 'q',
-            TRADE_TIMESTAMP_FIELD: 'T', 'is_buyer_market_maker': 'm'}
+        self.parsing_trade_columns = {}
         self.logger = get_logger_from_self(self)
 
     def _base_parse_trade(self, data):

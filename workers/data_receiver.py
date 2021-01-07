@@ -6,7 +6,7 @@ from unicorn_binance_websocket_api.unicorn_binance_websocket_api_manager \
 
 from utils import get_logger_from_self
 from workers.constants import IS_CHECKED_FIELDNAME, TRADE_ID_FIELD, \
-    SYMBOL_FIELD
+    TRADE_SYMBOL_FIELD, TRADE_TIMESTAMP_FIELD
 from workers.data_base import BinanceDataStreamBase
 
 
@@ -18,11 +18,16 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         self.symbols = self._get_all_symbols() if symbols == 'all' else symbols
         self.streams = streams
 
+        self.parsing_trade_columns = {
+            TRADE_SYMBOL_FIELD: 's', TRADE_ID_FIELD: 't', 'price': 'p',
+            'quantity': 'q', TRADE_TIMESTAMP_FIELD: 'T',
+            'is_buyer_market_maker': 'm'}
+
         self.logger = get_logger_from_self(self)
 
     def _get_all_symbols(self):
         exchange_info = self.binance_client.get_exchange_info()
-        return [symbol[SYMBOL_FIELD] for symbol in exchange_info[
+        return [symbol[TRADE_SYMBOL_FIELD] for symbol in exchange_info[
             'symbols'] if symbol['status'] == 'TRADING']
 
     def start_websocket(self):
@@ -60,7 +65,7 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                 else:
                     time.sleep(0.3)
 
-                current_buffer_excel = len(self.bm.stream_buffer) > 1000
+                current_buffer_excel = len(self.bm.stream_buffer) > 10000
                 if last_buffer_excel != current_buffer_excel:
                     message = f'Your stream buffer is ' \
                               f'{len(self.bm.stream_buffer)} len'
@@ -79,9 +84,9 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
 
         new_document = self._parse_msg(msg)
         collection = self.mongo_manager.init_collection(
-            new_document[SYMBOL_FIELD], msg['e'])
+            new_document[TRADE_SYMBOL_FIELD], msg['e'])
         query = {TRADE_ID_FIELD: new_document[TRADE_ID_FIELD]}
-        self.mongo_manager.update_one(collection, query, new_document)
+        self.mongo_manager.update(collection, query, new_document)
 
     @staticmethod
     def _process_book_ticker(msg):
