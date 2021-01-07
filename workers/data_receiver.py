@@ -32,7 +32,7 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
             'symbols'] if symbol['status'] == 'TRADING']
 
     def start_websocket(self):
-        self.bm.create_stream(self.streams, self.symbols[:1000])
+        self.bm.create_stream(self.streams, self.symbols)
 
         message = f'Websocket connection opened for ' \
                   f'{self.db_client.address}...'
