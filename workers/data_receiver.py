@@ -1,5 +1,6 @@
 import json
 import time
+import os
 
 from unicorn_binance_websocket_api.unicorn_binance_websocket_api_manager \
     import BinanceWebSocketApiManager
@@ -24,6 +25,9 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
             'is_buyer_market_maker': 'm'}
 
         self.logger = get_logger_from_self(self)
+        self.log_dir = './logs'
+        self.buffer_filename = os.path.join(self.log_dir, 'buffer_len.log')
+        self.buffer_update_frequency = 1000
 
     def _get_all_symbols(self):
         exchange_info = self.binance_client.get_exchange_info()
@@ -38,8 +42,25 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         self._send_log_info(message, log_level='info')
         try:
             last_buffer_excel = False
+            counter = 0
+            start_buffer = time.time()
             while True:
                 msg = self.bm.pop_stream_data_from_stream_buffer()
+
+                counter += 1
+                if counter >= self.buffer_update_frequency and \
+                        counter % self.buffer_update_frequency == 0:
+                    elapsed = time.time() - start_buffer
+                    self._save_buffer_len(elapsed)
+                    start_buffer = time.time()
+
+                current_buffer_excel = len(self.bm.stream_buffer) > 10000
+                if last_buffer_excel != current_buffer_excel:
+                    message = f'Your stream buffer is ' \
+                              f'{len(self.bm.stream_buffer)} len'
+                    self._send_log_info(message, log_level='warning')
+                    last_buffer_excel = current_buffer_excel
+
                 if msg:
                     start = time.time()
                     try:
@@ -64,13 +85,6 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                                         to_telegram=False)
                 else:
                     time.sleep(0.3)
-
-                current_buffer_excel = len(self.bm.stream_buffer) > 10000
-                if last_buffer_excel != current_buffer_excel:
-                    message = f'Your stream buffer is ' \
-                              f'{len(self.bm.stream_buffer)} len'
-                    self._send_log_info(message, log_level='warning')
-                    last_buffer_excel = current_buffer_excel
         except Exception as e:
             message = f'Uncaught exception: {e}'
             self._send_log_info(message, log_level='exception')
@@ -96,3 +110,11 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         parsed = self._base_parse_trade(msg)
         parsed[IS_CHECKED_FIELDNAME] = False
         return parsed
+
+    def _save_buffer_len(self, elapsed):
+        message = f"Buffer size = {str(len(self.bm.stream_buffer))}\n" \
+                  f"Elapsed {elapsed:0.2f} sec. for " \
+                  f"{self.buffer_update_frequency} operations\n"
+        with open(self.buffer_filename, 'w') as file:
+            file.write(message)
+        print(message)
