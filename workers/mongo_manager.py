@@ -2,17 +2,16 @@ import os
 
 import pymongo
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError, BulkWriteError
+from pymongo.errors import PyMongoError
 
-from utils import get_logger_from_self
-from workers.data_base import BaseLogger
+from utils import get_logger_from_self, BaseLogger
 from workers.constants import TRADE_ID_FIELD, TRADE_PARSED_TIME_FIELD
 
 
 class MongoManager(BaseLogger):
-    def __init__(self):
+    def __init__(self, connect_cred=None):
         super().__init__()
-        self.db_client, self.db = self.init_mongodb_connection()
+        self.db_client, self.db = self.init_mongodb_connection(connect_cred)
         self.logger = get_logger_from_self(self)
 
     def init_collection(self, symbol, stream):
@@ -28,9 +27,15 @@ class MongoManager(BaseLogger):
         kwargs = {'upsert': upsert}
         return self._execute_operation(func, *args, **kwargs)
 
-    def insert_many(self, collection, documents):
-        func = collection.insert_many
-        return self._execute_operation(func, (documents))
+    def insert_many(self, collection, documents, trade_id, diff):
+        query = {TRADE_ID_FIELD: {
+            '$in': list(range(int(trade_id), int(trade_id+diff)))}}
+        existing_trades = self._execute_operation(collection.find, query)
+        existing_trades = [doc[TRADE_ID_FIELD] for doc in existing_trades]
+        documents = list(filter(lambda x: x[TRADE_ID_FIELD] not in
+                                existing_trades, documents))
+        return self._execute_operation(
+            collection.insert_many, documents) if len(documents) > 0 else None            
 
     @staticmethod
     def init_mongodb_connection(connect_cred=None):
@@ -61,7 +66,8 @@ class MongoManager(BaseLogger):
             self._send_log_info(message, 'error')
             return
 
-        if not result.acknowledged:
+        if not isinstance(result, pymongo.cursor.Cursor) and \
+                not result.acknowledged:
             message = f"Couldn't proceed {func} with {args} and {kwargs}. " \
                       f"Check result: {result.raw_result}"
             self._send_log_info(message, 'error')

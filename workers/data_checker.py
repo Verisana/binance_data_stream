@@ -25,7 +25,6 @@ class BinanceDataChecker(BinanceDataStreamBase):
             'is_buyer_market_maker': 'isBuyerMaker'}
 
     def start_checking(self):
-        last_check_send = None
         while True:
             start = time.time()
             trades_added, documents_count = self._check_trades()
@@ -33,13 +32,10 @@ class BinanceDataChecker(BinanceDataStreamBase):
                       f"{time.time() - start:0.2f} sec.\nAdded " \
                       f"{trades_added} missed trades\nChecked " \
                       f"{documents_count} existing documents"
-            current_check_send = datetime.now().day
-            if current_check_send != last_check_send:
-                self._send_log_info(message, log_level='info')
-                last_check_send = current_check_send
+            if trades_added > 0:
+                self._send_log_info(message)
             else:
-                self._send_log_info(message, log_level='debug',
-                                    to_telegram=False)
+                self._send_log_info(message, to_telegram=False)
 
             self._check_order_books()
             time.sleep(self.sleep_time)
@@ -75,19 +71,11 @@ class BinanceDataChecker(BinanceDataStreamBase):
             if diff == 1:
                 checked_trades.append(trade_id)
             else:
-                try:
-                    next_trade_id = list(collection.find({
-                        TRADE_ID_FIELD: trade_id+1}))[0].get(TRADE_ID_FIELD, 0)
-                except IndexError:
-                    next_trade_id = 0
-                if (next_trade_id - trade_id) == 1:
+                trades_filled = self._fill_missing_docs(collection,
+                                                        diff-1, trade_id+1)
+                all_trades_filled += trades_filled
+                if trades_filled > 0:
                     checked_trades.append(trade_id)
-                else:
-                    trades_filled = self._fill_missing_docs(collection,
-                                                            diff-1, trade_id+1)
-                    all_trades_filled += trades_filled
-                    if trades_filled > 0:
-                        checked_trades.append(trade_id)
         if len(checked_trades) > 0:
             query = {TRADE_ID_FIELD: {"$in": checked_trades}}
             self.mongo_manager.update(
@@ -100,7 +88,8 @@ class BinanceDataChecker(BinanceDataStreamBase):
         if len(missing_data) == 0:
             return 0
         else:
-            result = self.mongo_manager.insert_many(collection, missing_data)
+            result = self.mongo_manager.insert_many(collection, missing_data,
+                                                    trade_id, diff)
             return 0 if result is None else len(missing_data)
 
     def _fetch_missing_data(self, symbol, limit, from_id):

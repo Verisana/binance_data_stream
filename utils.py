@@ -18,7 +18,6 @@ class BaseLogger:
         self.chat_id = os.getenv('CHAT_ID')
         token = os.getenv('BOT_TOKEN')
         self.bot = Bot(token)
-
         self.logger = get_logger_from_self(self)
 
     def _send_log_info(self, message, log_level='info', to_telegram=True):
