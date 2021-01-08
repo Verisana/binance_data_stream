@@ -119,4 +119,3 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                   f"{self.buffer_update_frequency} operations\n"
         with open(self.buffer_filename, 'w') as file:
             file.write(message)
-        print(message)
