@@ -28,6 +28,7 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         self.log_dir = './logs'
         self.buffer_filename = os.path.join(self.log_dir, 'buffer_len.log')
         self.buffer_update_frequency = 1000
+        self.buffer_critical_len = 100000
 
     def _get_all_symbols(self):
         exchange_info = self.binance_client.get_exchange_info()
@@ -54,7 +55,8 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                     self._save_buffer_len(elapsed)
                     start_buffer = time.time()
 
-                current_buffer_excel = len(self.bm.stream_buffer) > 10000
+                current_buffer_excel = len(
+                    self.bm.stream_buffer) > self.buffer_critical_len
                 if last_buffer_excel != current_buffer_excel:
                     message = f'Your stream buffer is ' \
                               f'{len(self.bm.stream_buffer)} len'
