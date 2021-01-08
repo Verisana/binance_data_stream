@@ -3,3 +3,4 @@ data/
 logs/
 sensitive_info/
 mongo_data/
+binance_data.archive
