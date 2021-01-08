@@ -3,6 +3,7 @@ from typing import List
 
 import numpy as np
 from binance.exceptions import BinanceAPIException
+from pymongo.errors import BulkWriteError
 
 from utils import get_logger_from_self
 from workers.constants import IS_CHECKED_FIELDNAME, TRADE_ID_FIELD, \
@@ -89,7 +90,10 @@ class BinanceDataChecker(BinanceDataStreamBase):
         else:
             result = self.mongo_manager.insert_many(collection, missing_data,
                                                     trade_id, diff)
-            return 0 if result is None else len(missing_data)
+            if isinstance(result, BulkWriteError):
+                return result.details['nInserted']
+            else:
+                return 0 if result is None else len(missing_data)
 
     def _fetch_missing_data(self, symbol, limit, from_id):
         set_last_unchecked = False
