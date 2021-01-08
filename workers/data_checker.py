@@ -1,5 +1,4 @@
 import time
-from datetime import datetime
 from typing import List
 
 import numpy as np
@@ -12,7 +11,7 @@ from workers.data_base import BinanceDataStreamBase
 
 
 class BinanceDataChecker(BinanceDataStreamBase):
-    def __init__(self, sleep_time=5):
+    def __init__(self, sleep_time=0):
         super().__init__()
 
         # Given in minutes
