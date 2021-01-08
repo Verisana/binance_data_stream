@@ -26,19 +26,24 @@ class BinanceDataChecker(BinanceDataStreamBase):
 
     def start_checking(self):
         while True:
-            start = time.time()
-            trades_added, documents_count = self._check_trades()
-            message = f"Data consistency checked in " \
-                      f"{time.time() - start:0.2f} sec.\nAdded " \
-                      f"{trades_added} missed trades\nChecked " \
-                      f"{documents_count} existing documents"
-            if trades_added > 0:
-                self._send_log_info(message)
-            else:
-                self._send_log_info(message, to_telegram=False)
+            try:
+                start = time.time()
+                trades_added, documents_count = self._check_trades()
+                message = f"Data consistency checked in " \
+                          f"{time.time() - start:0.2f} sec.\nAdded " \
+                          f"{trades_added} missed trades\nChecked " \
+                          f"{documents_count} existing documents"
+                if trades_added > 0:
+                    self._send_log_info(message)
+                else:
+                    self._send_log_info(message, to_telegram=False)
 
-            self._check_order_books()
-            time.sleep(self.sleep_time)
+                self._check_order_books()
+                time.sleep(self.sleep_time)
+            except Exception as e:
+                message = f'Uncaught exception: {e}'
+                self._send_log_info(message, log_level='exception')
+                raise e
 
     def _check_trades(self):
         all_collections = self.mongo_manager.db.list_collection_names()
@@ -88,8 +93,7 @@ class BinanceDataChecker(BinanceDataStreamBase):
         if len(missing_data) == 0:
             return 0
         else:
-            result = self.mongo_manager.insert_many(collection, missing_data,
-                                                    trade_id, diff)
+            result = self.mongo_manager.insert_many(collection, missing_data)
             if isinstance(result, BulkWriteError):
                 return result.details['nInserted']
             else:
