@@ -2,10 +2,11 @@ import os
 
 import pymongo
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError
+from pymongo.errors import PyMongoError, BulkWriteError
 
 from utils import get_logger_from_self, BaseLogger
-from workers.constants import TRADE_ID_FIELD, TRADE_PARSED_TIME_FIELD
+from workers.constants import TRADE_ID_FIELD, TRADE_PARSED_TIME_FIELD, \
+    IS_CHECKED_FIELDNAME
 
 
 class MongoManager(BaseLogger):
@@ -19,6 +20,7 @@ class MongoManager(BaseLogger):
         collection.create_index(
             [(TRADE_ID_FIELD, pymongo.ASCENDING),
              (TRADE_PARSED_TIME_FIELD, pymongo.ASCENDING)], unique=True)
+        collection.create_index(IS_CHECKED_FIELDNAME)
         return collection
 
     def update(self, collection, query, document, upsert=True, is_one=True):
@@ -27,15 +29,9 @@ class MongoManager(BaseLogger):
         kwargs = {'upsert': upsert}
         return self._execute_operation(func, *args, **kwargs)
 
-    def insert_many(self, collection, documents, trade_id, diff):
-        query = {TRADE_ID_FIELD: {
-            '$in': list(range(int(trade_id), int(trade_id+diff)))}}
-        existing_trades = self._execute_operation(collection.find, query)
-        existing_trades = [doc[TRADE_ID_FIELD] for doc in existing_trades]
-        documents = list(filter(lambda x: x[TRADE_ID_FIELD] not in
-                                existing_trades, documents))
-        return self._execute_operation(
-            collection.insert_many, documents) if len(documents) > 0 else None
+    def insert_many(self, collection, documents):
+        return self._execute_operation(collection.insert_many, documents,
+                                       ordered=False)
 
     @staticmethod
     def init_mongodb_connection(connect_cred=None):
@@ -56,6 +52,8 @@ class MongoManager(BaseLogger):
     def _execute_operation(self, func, *args, **kwargs):
         try:
             result = func(*args, **kwargs)
+        except BulkWriteError as e:
+            return e
         except PyMongoError as e:
             message = f"PyMongoError: {e}"
             self._send_log_info(message, 'error')
