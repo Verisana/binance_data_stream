@@ -100,7 +100,6 @@ class BinanceDataChecker(BinanceDataStreamBase):
                 return 0 if result is None else len(result.inserted_ids)
 
     def _fetch_missing_data(self, symbol, limit, from_id):
-        set_last_unchecked = False
         all_data = []
         if limit <= 1000:
             all_data = self._get_historical_trades(symbol, limit, from_id)
@@ -110,20 +109,12 @@ class BinanceDataChecker(BinanceDataStreamBase):
                 new_limit = min(1000, last_id-current_from_id)
                 new_data = self._get_historical_trades(symbol, new_limit,
                                                        current_from_id)
-                if len(new_data) == 0:
-                    if len(all_data) != 0:
-                        set_last_unchecked = True
-                        break
-                else:
-                    all_data.extend(new_data)
-
+                all_data.extend(new_data)
         all_data = self._parse_trade_data(all_data)
-        if set_last_unchecked:
-            all_data[-1][IS_CHECKED_FIELDNAME] = False
         return all_data
 
     def _get_historical_trades(self, symbol, limit, from_id):
-        results = {}
+        results = []
         for i in range(2): # two attempts
             try:
                 results = self.binance_client.get_historical_trades(
