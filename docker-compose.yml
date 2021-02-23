@@ -23,35 +23,51 @@ services:
       - .env
     command: redis-server --appendonly yes
 
-  data_receiver:
-    container_name: data_receiver
-    image: gr1902/data_manager
-    build:
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-    command: python start_receiver.py --config config.yaml
-    volumes:
-      - ./logs/:/home/user/app/logs
-    restart: on-failure
-    depends_on:
-      - mongo_db
+  # data_receiver:
+  #   container_name: data_receiver
+  #   image: gr1902/data_manager
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - .env
+  #   command: python start_receiver.py --config config.yaml
+  #   volumes:
+  #     - ./logs/:/home/user/app/logs
+  #   restart: on-failure
+  #   depends_on:
+  #     - mongo_db
 
-  data_checker:
-    container_name: data_checker
+  # data_checker:
+  #   container_name: data_checker
+  #   image: gr1902/data_manager
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - .env
+  #   command: python start_checker.py --config config.yaml
+  #   volumes:
+  #     - ./logs/:/home/user/app/logs
+  #   restart: on-failure
+  #   depends_on:
+  #     - mongo_db
+
+  data_writer:
+    container_name: data_writers
     image: gr1902/data_manager
     build:
       context: .
       dockerfile: Dockerfile
     env_file:
       - .env
-    command: python start_checker.py --config config.yaml
+    command: celery -A workers.data_writer worker -l INFO
     volumes:
       - ./logs/:/home/user/app/logs
-    restart: on-failure
+    # restart: on-failure
     depends_on:
       - mongo_db
+      - redis
 
 volumes:
   mongo_data:
