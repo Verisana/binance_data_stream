@@ -3,4 +3,4 @@ data_receiver:
   streams: [trade]
   symbols: 'all'
 data_checker:
-  sleep_time: 1 # in hours
+  sleep_time: 1 # in minutes
