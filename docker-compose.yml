@@ -12,17 +12,6 @@ services:
     ports:
       - 27017:27017
 
-  redis:
-    container_name: redis
-    image: redis:6.2-rc2-alpine
-    init: true
-    restart: always
-    volumes:
-      - redis_data:/data
-    env_file:
-      - .env
-    command: redis-server --appendonly yes
-
   data_receiver:
     container_name: data_receiver
     image: gr1902/data_manager
