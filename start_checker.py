@@ -1,5 +1,6 @@
 import argparse
 import logging
+import asyncio
 
 import yaml
 from dotenv import load_dotenv
@@ -12,8 +13,12 @@ load_dotenv()
 def main(config):
     sleep_time = config['data_checker']['sleep_time']
 
-    manager = BinanceDataChecker(sleep_time)
-    manager.start_checking()
+    loop = asyncio.get_event_loop()
+    manager = BinanceDataChecker(sleep_time, loop)
+    try:
+        loop.run_until_complete(manager.start_checking())
+    finally:
+        loop.close()
 
 
 if __name__ == '__main__':

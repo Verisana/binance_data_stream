@@ -12,8 +12,8 @@ from workers.data_base import BinanceDataStreamBase
 
 
 class BinanceDataChecker(BinanceDataStreamBase):
-    def __init__(self, sleep_time=0):
-        super().__init__()
+    def __init__(self, sleep_time=0, loop=None):
+        super().__init__(loop=loop)
 
         # Given in minutes
         self.sleep_time = sleep_time * 60
@@ -24,11 +24,11 @@ class BinanceDataChecker(BinanceDataStreamBase):
             'price': 'price', 'quantity': 'qty', TRADE_TIMESTAMP_FIELD: 'time',
             'is_buyer_market_maker': 'isBuyerMaker'}
 
-    def start_checking(self):
+    async def start_checking(self):
         while True:
             try:
                 start = time.time()
-                trades_added, documents_count = self._check_trades()
+                trades_added, documents_count = await self._check_trades()
                 message = f"Data consistency checked in " \
                           f"{time.time() - start:0.2f} sec.\nAdded " \
                           f"{trades_added} missed trades\nChecked " \
@@ -45,13 +45,13 @@ class BinanceDataChecker(BinanceDataStreamBase):
                 self._send_log_info(message, log_level='exception')
                 raise e
 
-    def _check_trades(self):
-        all_collections = self.mongo_manager.db.list_collection_names()
+    async def _check_trades(self):
+        all_collections = await self.mongo_manager.db.list_collection_names()
         trade_collections = list(filter(lambda x: x.endswith('trade'),
                                  all_collections))
         trades_added, documents_count = 0, 0
         for collection in trade_collections:
-            missing_trades, docs_count = self._process_trade_collection(
+            missing_trades, docs_count = await self._process_trade_collection(
                 self.mongo_manager.db[collection])
             documents_count += docs_count
             trades_added += missing_trades
@@ -61,39 +61,40 @@ class BinanceDataChecker(BinanceDataStreamBase):
             self._send_log_info(message, log_level='warning')
         return trades_added, documents_count
 
-    def _process_trade_collection(self, collection):
-        all_documents = list(collection.find(
-            {IS_CHECKED_FIELDNAME: False}, [TRADE_ID_FIELD]).sort('trade_id'))
+    async def _process_trade_collection(self, collection):
+        all_documents = await collection.find(
+            {IS_CHECKED_FIELDNAME: False}, [TRADE_ID_FIELD]).sort('trade_id').to_list(None)
         if len(all_documents) <= 1:
             return 0, len(all_documents)
         trade_ids = np.array([doc[TRADE_ID_FIELD] for doc in all_documents])
         diffs = np.diff(trade_ids)
         all_trades_filled = 0
         checked_trades = []
-        for trade_id, diff, document in zip(trade_ids[:-1], diffs,
-                                            all_documents[:-1]):
+        for trade_id, diff, _ in zip(trade_ids[:-1], diffs,
+                                     all_documents[:-1]):
             trade_id = int(trade_id)
             if diff == 1:
                 checked_trades.append(trade_id)
             else:
-                trades_filled = self._fill_missing_docs(collection,
+                trades_filled = await self._fill_missing_docs(collection,
                                                         diff-1, trade_id+1)
                 all_trades_filled += trades_filled
                 if trades_filled > 0:
                     checked_trades.append(trade_id)
         if len(checked_trades) > 0:
             query = {TRADE_ID_FIELD: {"$in": checked_trades}}
-            self.mongo_manager.update(
+            await self.mongo_manager.update(
                 collection, query, {IS_CHECKED_FIELDNAME: True}, is_one=False)
         return all_trades_filled, len(all_documents)
 
-    def _fill_missing_docs(self, collection, diff, trade_id):
+    async def _fill_missing_docs(self, collection, diff, trade_id):
         symbol = collection.name.split('_')[0]
         missing_data = self._fetch_missing_data(symbol, diff, trade_id)
         if len(missing_data) == 0:
             return 0
         else:
-            result = self.mongo_manager.insert_many(collection, missing_data)
+            result = await self.mongo_manager.insert_many(collection,
+                                                          missing_data)
             if isinstance(result, BulkWriteError):
                 return result.details['nInserted']
             else:
