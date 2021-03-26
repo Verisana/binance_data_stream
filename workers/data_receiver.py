@@ -1,6 +1,7 @@
 import json
 import time
 import os
+import asyncio
 
 from unicorn_binance_websocket_api.unicorn_binance_websocket_api_manager \
     import BinanceWebSocketApiManager
@@ -12,12 +13,13 @@ from workers.data_base import BinanceDataStreamBase
 
 
 class BinanceWebSocketReceiver(BinanceDataStreamBase):
-    def __init__(self, symbols, streams):
-        super().__init__()
+    def __init__(self, symbols, streams, loop=None, gather_len=100):
+        super().__init__(loop)
         self.bm = BinanceWebSocketApiManager(exchange="binance.com")
 
         self.symbols = self._get_all_symbols() if symbols == 'all' else symbols
         self.streams = streams
+        self.gather_len = gather_len
 
         self.parsing_trade_columns = {
             TRADE_SYMBOL_FIELD: 's', TRADE_ID_FIELD: 't', 'price': 'p',
@@ -27,7 +29,6 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         self.logger = get_logger_from_self(self)
         self.log_dir = './logs'
         self.buffer_filename = os.path.join(self.log_dir, 'buffer_len.log')
-        self.buffer_update_frequency = 1000
         self.buffer_critical_len = 100000
 
     def _get_all_symbols(self):
@@ -35,25 +36,38 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         return [symbol[TRADE_SYMBOL_FIELD] for symbol in exchange_info[
             'symbols'] if symbol['status'] == 'TRADING']
 
-    def start_websocket(self):
+    async def execute_tasks(self, tasks):
+        if len(tasks) == 0:
+            return
+        await asyncio.gather(*tasks)
+        tasks.clear()
+
+    async def start_websocket(self):
         self.bm.create_stream(self.streams, self.symbols)
 
         message = f'Websocket connection opened for ' \
                   f'{self.mongo_manager.db_client.address}...'
         self._send_log_info(message, log_level='info')
+        tasks = []
+        start = time.time()
         try:
             last_buffer_excel = False
-            counter = 0
-            start_buffer = time.time()
             while True:
-                msg = self.bm.pop_stream_data_from_stream_buffer()
+                if len(tasks) >= self.gather_len:
+                    num_tasks = len(tasks)
+                    num_new_messages = len(self.bm.stream_buffer)
+                    await self.execute_tasks(tasks)
+                    new_messages = len(self.bm.stream_buffer) - \
+                        num_new_messages
+                    elapsed = time.time() - start
+                    message = f'One message process time is ' \
+                              f'{elapsed / num_tasks}'
+                    self._send_log_info(message, log_level='debug',
+                                        to_telegram=False)
+                    self._save_buffer_len(elapsed, num_tasks, new_messages)
+                    start = time.time()
 
-                counter += 1
-                if counter >= self.buffer_update_frequency and \
-                        counter % self.buffer_update_frequency == 0:
-                    elapsed = time.time() - start_buffer
-                    self._save_buffer_len(elapsed)
-                    start_buffer = time.time()
+                msg = self.bm.pop_stream_data_from_stream_buffer()
 
                 current_buffer_excel = len(
                     self.bm.stream_buffer) > self.buffer_critical_len
@@ -64,7 +78,6 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                     last_buffer_excel = current_buffer_excel
 
                 if msg:
-                    start = time.time()
                     try:
                         msg = json.loads(msg)
                         stream = msg['stream']
@@ -78,34 +91,33 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
                         continue
 
                     if stream.split('@')[-1].lower() == 'trade':
-                        self._process_trade_ticker(msg)
+                        tasks.append(
+                            asyncio.create_task(
+                                self._process_trade_ticker(msg)))
                     else:
-                        self._process_book_ticker(msg)
-                    message = f'One message process time is ' \
-                              f'{time.time() - start}'
-                    self._send_log_info(message, log_level='debug',
-                                        to_telegram=False)
-                else:
-                    time.sleep(0.3)
+                        tasks.append(
+                            asyncio.create_task(
+                                self._process_book_ticker(msg)))
+
         except Exception as e:
             message = f'Uncaught exception: {e}'
             self._send_log_info(message, log_level='exception')
             raise e
 
-    def _process_trade_ticker(self, msg):
+    async def _process_trade_ticker(self, msg):
         if msg['e'] == 'error':
             message = f'Error occurred at processing trade ticker:\n {msg}'
             self._send_log_info(message, log_level='error')
             return msg
 
         new_document = self._parse_msg(msg)
-        collection = self.mongo_manager.init_collection(
+        collection = await self.mongo_manager.init_collection(
             new_document[TRADE_SYMBOL_FIELD], msg['e'])
         query = {TRADE_ID_FIELD: new_document[TRADE_ID_FIELD]}
-        self.mongo_manager.update(collection, query, new_document)
+        await self.mongo_manager.update(collection, query, new_document)
 
     @staticmethod
-    def _process_book_ticker(msg):
+    async def _process_book_ticker(msg):
         print(msg)
 
     def _parse_msg(self, msg):
@@ -113,9 +125,10 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         parsed[IS_CHECKED_FIELDNAME] = False
         return parsed
 
-    def _save_buffer_len(self, elapsed):
+    def _save_buffer_len(self, elapsed, num_tasks, new_messages):
         message = f"Buffer size = {str(len(self.bm.stream_buffer))}\n" \
                   f"Elapsed {elapsed:0.2f} sec. for " \
-                  f"{self.buffer_update_frequency} operations\n"
+                  f"{str(num_tasks)} operations\n" \
+                  f"New messages number = {str(new_messages)}\n"
         with open(self.buffer_filename, 'w') as file:
             file.write(message)

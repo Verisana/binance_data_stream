@@ -1,5 +1,6 @@
 import argparse
 import logging
+import asyncio
 
 import yaml
 from dotenv import load_dotenv
@@ -21,8 +22,12 @@ def main(config):
     if streams is not None:
         streams = list(map(lambda x: x.lower(), streams))
 
-    manager = BinanceWebSocketReceiver(symbols, streams)
-    manager.start_websocket()
+    loop = asyncio.get_event_loop()
+    manager = BinanceWebSocketReceiver(symbols, streams, loop)
+    try:
+        loop.run_until_complete(manager.start_websocket())
+    finally:
+        loop.close()
 
 
 if __name__ == '__main__':

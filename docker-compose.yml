@@ -12,17 +12,6 @@ services:
     ports:
       - 27017:27017
 
-  redis:
-    container_name: redis
-    image: redis:6.2-rc2-alpine
-    init: true
-    restart: always
-    volumes:
-      - redis_data:/data
-    env_file:
-      - .env
-    command: redis-server --appendonly yes
-
   # data_receiver:
   #   container_name: data_receiver
   #   image: gr1902/data_manager
@@ -52,22 +41,6 @@ services:
   #   restart: on-failure
   #   depends_on:
   #     - mongo_db
-
-  data_writer:
-    container_name: data_writers
-    image: gr1902/data_manager
-    build:
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-    command: celery -A workers.data_writer worker -l INFO
-    volumes:
-      - ./logs/:/home/user/app/logs
-    # restart: on-failure
-    depends_on:
-      - mongo_db
-      - redis
 
 volumes:
   mongo_data:

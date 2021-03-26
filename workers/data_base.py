@@ -10,11 +10,11 @@ from workers.mongo_manager import MongoManager
 
 
 class BinanceDataStreamBase(BaseLogger):
-    def __init__(self):
+    def __init__(self, loop=None):
         super().__init__()
         self.binance_client = Client(os.getenv('BINANCE_API'),
                                      os.getenv('BINANCE_TOKEN'))
-        self.mongo_manager = MongoManager()
+        self.mongo_manager = MongoManager(loop=loop)
         self.parsing_trade_columns = {}
         self.logger = get_logger_from_self(self)
 

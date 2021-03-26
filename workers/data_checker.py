@@ -115,7 +115,7 @@ class BinanceDataChecker(BinanceDataStreamBase):
 
     def _get_historical_trades(self, symbol, limit, from_id):
         results = []
-        for i in range(2): # two attempts
+        for i in range(2):  # two attempts
             try:
                 results = self.binance_client.get_historical_trades(
                     symbol=symbol, limit=limit, fromId=from_id)
@@ -126,7 +126,8 @@ class BinanceDataChecker(BinanceDataStreamBase):
             except BinanceAPIException as e:
                 if e.code == -1003:
                     wait_secs = 90
-                    message = f"Rate Limit Reached: {e}. Waiting {wait_secs} sec."
+                    message = f"Rate Limit Reached: {e}. " \
+                              f"Waiting {wait_secs} sec."
                     self._send_log_info(message, 'exception')
                     time.sleep(wait_secs)
                 else:
