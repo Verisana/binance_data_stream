@@ -32,7 +32,8 @@ def main(config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True, help='Provide config path', type=str)
+    parser.add_argument("--config", required=True,
+                        help='Provide config path', type=str)
     parser.add_argument('--debug', type=bool)
     args = parser.parse_args()
 

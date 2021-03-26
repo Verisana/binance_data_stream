@@ -63,7 +63,8 @@ class BinanceDataChecker(BinanceDataStreamBase):
 
     async def _process_trade_collection(self, collection):
         all_documents = await collection.find(
-            {IS_CHECKED_FIELDNAME: False}, [TRADE_ID_FIELD]).sort('trade_id').to_list(None)
+            {IS_CHECKED_FIELDNAME: False},
+            [TRADE_ID_FIELD]).sort('trade_id').to_list(None)
         if len(all_documents) <= 1:
             return 0, len(all_documents)
         trade_ids = np.array([doc[TRADE_ID_FIELD] for doc in all_documents])
@@ -76,8 +77,8 @@ class BinanceDataChecker(BinanceDataStreamBase):
             if diff == 1:
                 checked_trades.append(trade_id)
             else:
-                trades_filled = await self._fill_missing_docs(collection,
-                                                        diff-1, trade_id+1)
+                trades_filled = await self._fill_missing_docs(
+                    collection, diff-1, trade_id+1)
                 all_trades_filled += trades_filled
                 if trades_filled > 0:
                     checked_trades.append(trade_id)
