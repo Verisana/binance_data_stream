@@ -17,7 +17,7 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         super().__init__(loop)
         self.bm = BinanceWebSocketApiManager(exchange="binance.com")
 
-        self.symbols = self._get_all_symbols() if symbols == 'all' else symbols
+        self.symbols = self._get_symbols(symbols)
         self.streams = streams
         self.gather_len = gather_len
 
@@ -31,10 +31,25 @@ class BinanceWebSocketReceiver(BinanceDataStreamBase):
         self.buffer_filename = os.path.join(self.log_dir, 'buffer_len.log')
         self.buffer_critical_len = 100000
 
+    def _get_symbols(self, symbols):
+        if isinstance(symbols, str) and symbols == 'all':
+            return self._get_all_symbols()
+        elif isinstance(symbols, str) and symbols.split('_')[0] == 'top':
+            return self._get_top_n_symbols(symbols)
+        else:
+            return symbols
+
     def _get_all_symbols(self):
         exchange_info = self.binance_client.get_exchange_info()
         return [symbol[TRADE_SYMBOL_FIELD] for symbol in exchange_info[
             'symbols'] if symbol['status'] == 'TRADING']
+
+    def _get_top_n_symbols(self, symbols):
+        n = int(symbols.split('_')[1])
+        tickers_info = self.binance_client.get_ticker()
+        topn_tickers = sorted(
+            tickers_info, key=lambda x: x['count'], reverse=True)[:n]
+        return [ticker['symbol'] for ticker in topn_tickers]
 
     async def execute_tasks(self, tasks):
         if len(tasks) == 0:
