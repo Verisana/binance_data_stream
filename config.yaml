@@ -1,6 +1,19 @@
 # specify trades or/and order_book
 data_receiver:
   streams: [trade]
-  symbols: 'all'
+  # set: 'all' or 'top_n' or ['BTCUSDT', 'ETHUSDT' и ...]
+
+  # top_100 by trade_count in 24 hour for 27.03.2021
+  symbols: [ "BTCUSDT", "ADAUSDT", "BNBUSDT", "FILUSDT", "HOTUSDT", "ANKRUSDT", "ETHUSDT", "BTCBUSD", "XRPUSDT", "TRXUSDT",
+             "BTTUSDT", "CHRUSDT", "CHZUSDT", "DENTUSDT", "BUSDUSDT", "ETHBUSD", "DOTUSDT", "THETAUSDT", "AUDIOUSDT", "STORJUSDT",
+             "ONEUSDT", "EOSUSDT", "SUPERUSDT", "LTCUSDT", "ADABTC", "VETUSDT", "NPXSUSDT", "BTCEUR", "ETHBTC", "CAKEUSDT",
+             "WINUSDT", "BNBBUSD", "ENJUSDT", "EURUSDT", "ADABUSD", "USDTTRY", "ANTUSDT", "STMXUSDT", "SXPUSDT", "COTIUSDT",
+             "QTUMUSDT", "ONTUSDT", "LINKUSDT", "BNBBTC", "KEYUSDT", "UNIUSDT", "AUDIOBTC", "ARPAUSDT", "EGLDUSDT", "ANKRBTC",
+             "CKBUSDT", "FILBTC", "MATICUSDT", "WAVESUSDT", "VTHOUSDT", "TFUELUSDT", "OXTUSDT", "XLMUSDT", "HOTTRY", "BCHUSDT",
+             "TRBUSDT", "CELRUSDT", "XRPBTC", "ALICEUSDT", "FETUSDT", "BTTTRY", "STORJBTC", "LUNAUSDT", "CAKEBUSD", "REEFUSDT",
+             "AVAXUSDT", "DOGEUSDT", "THETABTC", "HOTETH", "COSUSDT", "SCUSDT", "SANDUSDT", "CRVUSDT", "MANAUSDT", "GRTUSDT",
+             "HBARUSDT", "MDTUSDT", "ALGOUSDT", "FILDOWNUSDT", "AXSUSDT", "FTMUSDT", "TRXDOWNUSDT", "KSMUSDT", "NEOUSDT", "SOLUSDT",
+             "CHZBTC", "ADAUPUSDT", "CHRBTC", "BLZUSDT", "IOSTUSDT", "ALPHAUSDT", "IOTAUSDT", "FETBTC", "DEGOUSDT", "ZILUSDT",
+]
 data_checker:
   sleep_time: 1 # in minutes
